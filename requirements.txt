@@ -1,3 +1,4 @@
-cryptography
-quart
-aiohttp
+cryptography~=42.0.5
+quart~=0.19.5
+aiohttp~=3.9.5
+python-dotenv~=1.0.1

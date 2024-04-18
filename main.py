@@ -4,10 +4,13 @@ import os
 import traceback
 from pathlib import Path
 
+from dotenv import load_dotenv
 from quart import request, jsonify, Quart
 
 from api import API
 from constants import SAVED_STREAMERS_FILE_NAME, SAVED_STREAMERS_FILE_NAME_BACKUP
+
+load_dotenv()
 
 app = Quart(__name__)
 
