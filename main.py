@@ -59,7 +59,7 @@ async def add_streamers():
     has_changed = False
     for streamer in streamers:
         streamer = streamer.lower()
-        if streamer not in tracked_streamers:
+        if streamer not in tracked_streamers and len(streamers) < 100:
             tracked_streamers.append(streamer)
             has_changed = True
 
@@ -94,15 +94,26 @@ async def live_streamers():
     return jsonify(response)
 
 
-async def main():
+async def setup():
     load_streamers()
     await api.setup()
 
 
+async def main():
+    from hypercorn.config import Config
+    from hypercorn.asyncio import serve
+
+    config = Config()
+    config.bind = ["0.0.0.0:9620"]
+    config.certfile = "certificate-stuff/cert.pem"
+    config.keyfile = "certificate-stuff/key.pem"
+    await serve(app, config)
+
+
 if __name__ == '__main__':
-    asyncio.run(main())
+    asyncio.run(setup())
     try:
-        app.run(host="0.0.0.0", port=9620)
+        asyncio.run(main())
     except KeyboardInterrupt:
         traceback.print_exc()
         print('Program stopped')
