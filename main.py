@@ -1,53 +1,108 @@
-import requests
-from flask import request, jsonify, Flask
+import asyncio
+import json
+import os
+import traceback
+from pathlib import Path
 
-app = Flask(__name__)
+from quart import request, jsonify, Quart
+
+from api import API
+from constants import SAVED_STREAMERS_FILE_NAME, SAVED_STREAMERS_FILE_NAME_BACKUP
+
+app = Quart(__name__)
 
 tracked_streamers = []
-twitch_api_base_url = "https://api.twitch.tv/helix/"
-headers = {
-    'Client-ID': client_id,
-    'Authorization': f'Bearer {bearer_token}'
-}
+api = API(client_id=os.getenv('client_id'), client_secret=os.getenv('client_secret'))
+
+
+def save_streamers():
+    streamers_file_path = Path(SAVED_STREAMERS_FILE_NAME)
+    if streamers_file_path.exists():
+        streamers_file_path.rename(SAVED_STREAMERS_FILE_NAME_BACKUP)
+    with open(SAVED_STREAMERS_FILE_NAME, 'w') as f:
+        json.dump(tracked_streamers, f)
+
+
+def load_streamers():
+    global tracked_streamers
+    streamers_file_path = Path(SAVED_STREAMERS_FILE_NAME)
+    if streamers_file_path.exists():
+        with open(SAVED_STREAMERS_FILE_NAME, 'r') as f:
+            tracked_streamers = json.load(f)
+        print('Loaded streamers from file')
+    else:
+        backup_streamers_file_path = Path(SAVED_STREAMERS_FILE_NAME_BACKUP)
+        if backup_streamers_file_path.exists():
+            with open(SAVED_STREAMERS_FILE_NAME_BACKUP, 'r') as f:
+                tracked_streamers = json.load(f)
+            print('Loaded streamers from backup file')
+        else:
+            print('No streamers available load')
+
+
+@app.route('/')
+async def index():
+    return 'Twitch Streamers API '
 
 
 @app.route('/api/streamers/list', methods=['GET'])
-def list_streamers():
+async def list_streamers():
     """Endpoint to list all tracked streamers."""
     return jsonify(tracked_streamers)
 
 
 @app.route('/api/streamers/add', methods=['POST'])
-def add_streamers():
+async def add_streamers():
     """Endpoint to add streamers to the tracking list."""
-    data = request.get_json()
+    data = await request.get_json()
     streamers = data.get('streamers', [])
+    has_changed = False
     for streamer in streamers:
+        streamer = streamer.lower()
         if streamer not in tracked_streamers:
             tracked_streamers.append(streamer)
+            has_changed = True
+
+    if has_changed:
+        save_streamers()
     return jsonify({'message': 'Streamers added', 'tracked_streamers': tracked_streamers})
 
 
 @app.route('/api/streamers/remove', methods=['DELETE'])
-def remove_streamers():
+async def remove_streamers():
     """Endpoint to remove streamers from the tracking list."""
-    data = request.get_json()
+    data = await request.get_json()
     streamers = data.get('streamers', [])
+    has_changed = False
     for streamer in streamers:
+        streamer = streamer.lower()
         if streamer in tracked_streamers:
             tracked_streamers.remove(streamer)
+            has_changed = True
+
+    if has_changed:
+        save_streamers()
     return jsonify({'message': 'Streamers removed', 'tracked_streamers': tracked_streamers})
 
 
 @app.route('/api/streamers/live', methods=['GET'])
-def live_streamers():
+async def live_streamers():
     """Endpoint to list currently live streamers from the tracked list."""
-    live_streamers_info = []
-    if tracked_streamers:
-        query = 'user_login=' + '&user_login='.join(tracked_streamers)
-        url = twitch_api_base_url + 'streams?' + query
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            live_streams = response.json().get('data', [])
-            live_streamers_info = [stream for stream in live_streams if stream['user_login'] in tracked_streamers]
-    return jsonify(live_streamers_info)
+    if not tracked_streamers:
+        return jsonify({'message': 'No streamers being tracked'})
+    response = await api.get_live_streamers(tracked_streamers)
+    return jsonify(response)
+
+
+async def main():
+    load_streamers()
+    await api.setup()
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
+    try:
+        app.run(host="0.0.0.0", port=9620)
+    except KeyboardInterrupt:
+        traceback.print_exc()
+        print('Program stopped')
