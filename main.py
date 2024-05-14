@@ -107,9 +107,7 @@ async def main():
     from hypercorn.asyncio import serve
 
     config = Config()
-    config.bind = ["0.0.0.0:9620"]
-    config.certfile = "certificate-stuff/cert.pem"
-    config.keyfile = "certificate-stuff/key.pem"
+    config.bind = ["localhost:9620"]
     await serve(app, config)
 
 
