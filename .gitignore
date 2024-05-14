@@ -135,6 +135,9 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
+# in case someone would hypothetically store their self-signed SSL certificates in a folder like this
+certificate-stuff/
+
 # mkdocs documentation
 /site
 
